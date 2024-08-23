@@ -5,30 +5,39 @@ import os.path
 import geopandas as gpd
 from shapely.geometry import Polygon
 
-# folder 
-base_folder = r'..\example_1'
+import warnings
+warnings.filterwarnings('ignore')
 
-# read QGIS setup json
-with open(r"qgis_env.json", 'r') as f:
-    env_dict = json.load(f)
+import argparse
+parser = argparse.ArgumentParser(description='set folder')
+parser.add_argument('folder', metavar='fd', type=str)
+args = parser.parse_args()
+
+# folder 
+# folder = r'../example_2'
+base_folder = rf"../{args.folder}"
+
+# # read QGIS setup json
+# with open(r"qgis_env.json", 'r') as f:
+#     env_dict = json.load(f)
 # read param json 
-with open(rf'{base_folder}\param.json') as fp: 
+with open(rf'{base_folder}/param.json') as fp: 
     param_dict = json.load(fp)
 epsg = param_dict['epsg']
 size = param_dict['size_code']
 # size = 'A5'
 # decide which scale folder the processing result goes by the scale
-base_folder = rf"{base_folder}\data"
-folder_temp = rf'{base_folder}\temp'
+base_folder = rf"{base_folder}/data"
+folder_temp = rf'{base_folder}/temp'
 if 'A3' in size:
     scale = 500
-    folder = rf'{base_folder}\500'
+    folder = rf'{base_folder}/500'
 else:
     scale = 1000
-    folder = rf'{base_folder}\1000'
+    folder = rf'{base_folder}/1000'
 
 # files
-streets_df = gpd.read_file(rf'{base_folder}\snapped_streets.geojson')
+streets_df = gpd.read_file(rf'{base_folder}/snapped_streets.geojson')
 # remove None geometry #CHECK: why?? there should'nt be None???
 streets_df = streets_df[streets_df['geometry']!=None]
 
@@ -47,27 +56,26 @@ streets_df.drop(columns=['geometry'], inplace=True)
 merged = streets_df.unary_union
 d = {'geometry': [merged]}
 gdf = gpd.GeoDataFrame(d, crs=f'epsg:{epsg}').to_crs(epsg=epsg)
-gdf.to_file(rf'{folder_temp}\buffer_streets.geojson', driver='GeoJSON')
+gdf.to_file(rf'{folder_temp}/buffer_streets.geojson', driver='GeoJSON')
 
 # QGIS STUFF
 import os
 import sys
 
-os.environ['PROJ_LIB'] = rf"{env_dict['PROJ_LIB']}"
-os.environ['PROJ_DEBUG'] = rf"{env_dict['PROJ_DEBUG']}"
-os.environ['QT_QPA_PLATFORM_PLUGIN_PATH'] = rf"{env_dict['QT_QPA_PLATFORM_PLUGIN_PATH']}"
-for apath in env_dict['PathAppend']:
-    os.environ['PATH'] += rf"{apath}"
+os.environ["QT_QPA_PLATFORM"] = "offscreen"
+prefixpath = '/usr/'
+# Add the path to processing so we can import it next
+sys.path.append("/usr/share/qgis/python/plugins/")
 from qgis.analysis import QgsNativeAlgorithms
 from qgis.core import (QgsApplication, QgsFeature, QgsField, QgsGeometry,
                        QgsPoint, QgsPointXY, QgsProcessingContext,
                        QgsProcessingFeedback, QgsProcessingUtils,
                        QgsVectorLayer)
 
-QgsApplication.setPrefixPath(rf"{env_dict['setPrefixPath']}", True)
+QgsApplication.setPrefixPath(prefixpath, True)
 qgs = QgsApplication([], False)
 qgs.initQgis()
-sys.path.append(rf"{env_dict['PathAppend']}")
+
 import processing
 from processing.core.Processing import Processing
 from qgis.analysis import QgsNativeAlgorithms
@@ -80,9 +88,9 @@ feedback = QgsProcessingFeedback()
 # NOTSURE the way the smallest area is defined? or is this step needed at all? 
 icon_space = scale*(param_dict['icon_size']) / 1000.0
 removed = processing.run('native:deleteholes', 
-        {'INPUT': rf'{folder_temp}\buffer_streets.geojson',
+        {'INPUT': rf'{folder_temp}/buffer_streets.geojson',
         'MIN_AREA': icon_space*icon_space*4,
-        'OUTPUT': rf'{folder_temp}\t2.geojson'})
+        'OUTPUT': rf'{folder_temp}/t2.geojson'})
 
 # remove standalone little street items? TODO:
 
@@ -91,19 +99,19 @@ removed = processing.run('native:deleteholes',
 smoothed = processing.run('native:smoothgeometry', 
             {'INPUT':removed['OUTPUT'],'ITERATIONS':4,  # 10 gets really slow. for faster purposes use 4 and arc PAEK.
             'MAX_ANGLE':180,'OFFSET':0.25,  # the actual range is [0.0 - 1.0] but qgis doesnot want anything larger than 0.5
-            'OUTPUT':rf'{folder}\street_area.geojson'})
+            'OUTPUT':rf'{folder}/street_area.geojson'})
 # no second smoothing otherwise crash (complex json crash)
 
 # ---------------------------------
 # --------------------------------- get island -----------------------------
-extent_df = gpd.read_file(rf"{base_folder}\big_extent.geojson")
-small_extent = gpd.read_file(rf"{base_folder}\extent_{size}.geojson")
-street_area_df = gpd.read_file(rf"{folder}\street_area.geojson")
+extent_df = gpd.read_file(rf"{base_folder}/big_extent.geojson")
+small_extent = gpd.read_file(rf"{base_folder}/extent_{size}.geojson")
+street_area_df = gpd.read_file(rf"{folder}/street_area.geojson")
 try:
-    buildings_df = gpd.read_file(rf"{base_folder}\buildings.geojson")
+    buildings_df = gpd.read_file(rf"{base_folder}/buildings.geojson")
 except: buildings_df = None
 try:
-    green_df = gpd.read_file(rf"{base_folder}\green.geojson")
+    green_df = gpd.read_file(rf"{base_folder}/green.geojson")
 except: green_df = None
 # cut
 # CHECK: what if there is no island then?
@@ -119,12 +127,12 @@ gdf = gdf[gdf.geometry.disjoint(buildings_df.geometry.unary_union)]
 # out
 try:
     gdf['split'] = 0
-    gdf.to_file(rf"{folder}\islands_full.geojson")
+    gdf.to_file(rf"{folder}/islands_full.geojson")
 except:
     pass
 
 try:
-    island_df = gpd.read_file(rf"{folder}\islands_full.geojson")
+    island_df = gpd.read_file(rf"{folder}/islands_full.geojson")
 except:
     island_df = None
 
@@ -133,15 +141,18 @@ if island_df is not None:
     island_df = island_df[island_df.geometry.intersects(small_extent.geometry.unary_union)]
     if len(island_df) == 0:
         # remove the file!
-        os.remove(rf"{folder}\islands_full.geojson")
+        os.remove(rf"{folder}/islands_full.geojson")
         island_df = None
-    island_df.to_file(rf"{folder}\islands_full.geojson")
+    try:
+        island_df.to_file(rf"{folder}/islands_full.geojson")
+    except:
+        pass
 
 '''if there is sidewalk area data, 
 will need to redo the street based on the sidewalk'''
 # if sidewalk area data exists
-if os.path.exists(rf"{base_folder}\sidewalk_area.geojson"):
-    sidewalk_df = gpd.read_file(rf"{base_folder}\sidewalk_area.geojson")
+if os.path.exists(rf"{base_folder}/sidewalk_area.geojson"):
+    sidewalk_df = gpd.read_file(rf"{base_folder}/sidewalk_area.geojson")
     # carve out street area based on sidewalk
     # NOTSURE: if the sidewalk data is not complete or anything, going to be very problematic
     merged = buildings_df.geometry.unary_union.union(sidewalk_df.geometry.unary_union)  # multipolygon
@@ -152,7 +163,7 @@ if os.path.exists(rf"{base_folder}\sidewalk_area.geojson"):
     d = {'geometry': [cut]}
     gdf = gpd.GeoDataFrame(d, crs=f'epsg:{epsg}')
     gdf = gdf.explode(index_parts=True)
-    gdf.to_file(rf"{folder_temp}\cut.geojson")
+    gdf.to_file(rf"{folder_temp}/cut.geojson")
 
     # only take the big middle piece, other smaller / not connected pieces will be discarded.
     # NOTSURE what condition to use here? biggest area + intersectng island? 
@@ -164,13 +175,13 @@ if os.path.exists(rf"{base_folder}\sidewalk_area.geojson"):
     else: 
         # CHECK: this condition, disjoint building or intersects streets?
         gdf = gdf[gdf.geometry.intersects(street_area_df.geometry.unary_union)]
-        # gdf.to_file(rf"{folder_temp}\cut.geojson")
+        # gdf.to_file(rf"{folder_temp}/cut.geojson")
     # out, street and the "boundary filled"
-    gdf.to_file(rf"{folder}\street_from_sidewalk.geojson")
+    gdf.to_file(rf"{folder}/street_from_sidewalk.geojson")
     gdf['boundary'] = gdf.geometry.boundary
     gdf.set_geometry('boundary', inplace=True)
     out = gdf[['boundary']]
-    out.to_file(rf"{folder}\street_boundary_filled.geojson")
+    out.to_file(rf"{folder}/street_boundary_filled.geojson")
     # carve out island to have the (original) boundary NOTSURE is this needed after all?
     gdf.set_geometry('geometry', inplace=True)
     if island_df is not None:
@@ -179,10 +190,10 @@ if os.path.exists(rf"{base_folder}\sidewalk_area.geojson"):
     boundary = diff.boundary
     d = {'geometry': [boundary]}
     gdf = gpd.GeoDataFrame(d, crs=f'epsg:{epsg}')
-    gdf.to_file(rf"{folder}\street_boundary_original.geojson")
+    gdf.to_file(rf"{folder}/street_boundary_original.geojson")
     # finally, make a smoother / generalized sidewalk area for later use (no ruggy edges at the building side)
     sidewalk_df.geometry = sidewalk_df.geometry.buffer(10, cap_style=3, join_style=2).buffer(-10, cap_style=3, join_style=2)
-    sidewalk_df.to_file(rf"{folder}\sidewalk_gen.geojson")
+    sidewalk_df.to_file(rf"{folder}/sidewalk_gen.geojson")
 
 # if there is no sidewalk areas
 # directly get the filled and original street boundary from the street areas
@@ -191,7 +202,7 @@ else:
     street_area_df['boundary'] = street_area_df.geometry.boundary  
     street_area_df.set_geometry('boundary', inplace=True)
     out = street_area_df[['boundary']]
-    out.to_file(rf"{folder}\street_boundary_original.geojson")
+    out.to_file(rf"{folder}/street_boundary_original.geojson")
     street_area_df.set_geometry('geometry', inplace=True)
     try: 
         merged = street_area_df.move_out.unary_union.union(island_df.geometry.unary_union)
@@ -199,10 +210,11 @@ else:
         d = {'geometry': [boundary]}
         gdf = gpd.GeoDataFrame(d, crs=f'epsg:{epsg}')
         gdf = gdf.explode(index_parts=True)
-        gdf.to_file(rf"{folder}\street_boundary_filled.geojson")
+        gdf.to_file(rf"{folder}/street_boundary_filled.geojson")
     except:
         street_area_df.set_geometry('move_out', inplace=True)
         out = street_area_df[['move_out']]
-        out.to_file(rf"{folder}\street_boundary_filled.geojson")
+        out.to_file(rf"{folder}/street_boundary_filled.geojson")
 
 # fin
+print("finished")

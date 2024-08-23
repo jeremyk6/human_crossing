@@ -10,36 +10,48 @@ from shapely import affinity
 from shapely.geometry import LineString
 from shapely.ops import nearest_points
 
+import warnings
+warnings.filterwarnings('ignore')
+
+import argparse
+parser = argparse.ArgumentParser(description='set folder')
+parser.add_argument('folder', metavar='fd', type=str)
+args = parser.parse_args()
+
 # folder 
-base_folder = r'..\example_1'
-folder_temp = rf'{base_folder}\temp'
+# folder = r'../example_2'
+base_folder = rf"../{args.folder}"
+
+# # folder 
+# base_folder = r'../example_2'
+folder_temp = rf'{base_folder}/temp'
 # read param json 
-with open(rf'{base_folder}\param.json') as fp: 
+with open(rf'{base_folder}/param.json') as fp: 
     param_dict = json.load(fp)
 epsg = param_dict['epsg']
 size = param_dict['size_code']
 
 # decide which scale folder the processing result goes by the scale
-base_folder = rf"{base_folder}\data"
+base_folder = rf"{base_folder}/data"
 if 'A3' in size:
     scale = 500
-    folder = rf'{base_folder}\500'
+    folder = rf'{base_folder}/500'
 else:
     scale = 1000
-    folder = rf'{base_folder}\1000'
+    folder = rf'{base_folder}/1000'
 
 
 lane_width = param_dict['lane_width']
 
-crossing_point = gpd.read_file(rf'{base_folder}\crossing_points.geojson')
-street_displaced = gpd.read_file(rf'{base_folder}\snapped_streets.geojson')
-extent_df = gpd.read_file(rf'{base_folder}\big_extent.geojson')
-small_extent = gpd.read_file(rf'{base_folder}\extent_{size}.geojson')
-street_area = gpd.read_file(rf'{folder}\street_area.geojson')
-street_boundary = gpd.read_file(rf'{folder}\street_boundary_original.geojson')
-street_outer_boundary = gpd.read_file(rf'{folder}\street_boundary_filled.geojson')
+crossing_point = gpd.read_file(rf'{base_folder}/crossing_points.geojson')
+street_displaced = gpd.read_file(rf'{base_folder}/snapped_streets.geojson')
+extent_df = gpd.read_file(rf'{base_folder}/big_extent.geojson')
+small_extent = gpd.read_file(rf'{base_folder}/extent_{size}.geojson')
+street_area = gpd.read_file(rf'{folder}/street_area.geojson')
+street_boundary = gpd.read_file(rf'{folder}/street_boundary_original.geojson')
+street_outer_boundary = gpd.read_file(rf'{folder}/street_boundary_filled.geojson')
 try:
-    island_df = gpd.read_file(rf'{folder}\islands_full.geojson')
+    island_df = gpd.read_file(rf'{folder}/islands_full.geojson')
 except:
     island_df = None
 
@@ -118,15 +130,15 @@ def standaloneIsland(island_df, crossing_df, street_area_df):
     island_df = island_df[island_df.geometry.intersects(extent_df.geometry.unary_union)]
     if len(island_df) == 0:
         # remove the file!
-        os.remove(rf"{folder}\islands_full.geojson")
+        os.remove(rf"{folder}/islands_full.geojson")
         return 
     island_df['connected'] = island_df.geometry.intersects(extended_crossing.geometry.unary_union)
     island_df = island_df[island_df['connected']==True]
     # output new files
     if len(island_df) > 0:
-        island_df.to_file(rf"{folder}\islands_full.geojson")
+        island_df.to_file(rf"{folder}/islands_full.geojson")
     else:
-        os.remove(rf"{folder}\islands_full.geojson")
+        os.remove(rf"{folder}/islands_full.geojson")
     # CHECK: do I need to redo the street boundaries again? which ones? 
 
 if island_df is not None:
@@ -181,14 +193,14 @@ street_ids = join_df.index_right.values.tolist()
 doubles = [x for x in street_ids if len(x) > 1]
 unique_doubles = [list(x) for x in set(tuple(x) for x in doubles)]
 try:
-    with open(rf'{folder_temp}\double_streets.json', 'w') as fp:
+    with open(rf'{folder_temp}/double_streets.json', 'w') as fp:
         json.dump([ob for ob in unique_doubles], fp)
 except:
     pass
 
 doubles_df = join_df[join_df['index_right'].str.len()>1]
 doubles_df = doubles_df.groupby(doubles_df['index_right'].map(tuple)).agg({'osm_id': lambda x: list(x), 'short_line': lambda x: list (x)})
-print(doubles_df)
+# print(doubles_df)
 
 def removeDoubles(id_list, line_list):
     removed_list = []
@@ -202,7 +214,7 @@ def removeDoubles(id_list, line_list):
             continue
         # # print(line_list)
         line_id = id_list_copy_2[line_list_copy_2.index(line)]
-        print(line_id)
+        # print(line_id)
         # print('remaining lines: ', [idx for idx in id_list_copy])
         # print('distances: ', [linex.distance(line) for linex in line_list_copy])
         line_list_copy_2.remove(line)
@@ -210,12 +222,12 @@ def removeDoubles(id_list, line_list):
         if len(line_list_copy_2) < 1:
             continue
         nearest_line = min([linex for linex in line_list_copy_2], key=lambda x: x.distance(line))
-        print(line.distance(nearest_line))
+        # print(line.distance(nearest_line))
         if line.distance(nearest_line) < 5:  # meter
             removed_list.append(line_id)
             id_list_copy_2.remove(line_id)
             # print(len(id_list_copy), len(line_list_copy))
-            print('removed, ', line_id)
+            # print('removed, ', line_id)
     return removed_list
 
 if doubles_df.empty==False:
@@ -253,7 +265,7 @@ out['street_ids'] = out['index_right'].apply(lambda x: ','.join(map(str, sorted(
 out = out[['osm_id', 'name_left', 'highway_left', 'other_tags_left', 'short_line', 'street_ids']]
 name_list = ['osm_id', 'name', 'highway', 'other_tags', 'short_line', 'street_ids']
 out.columns = name_list
-out.to_file(rf'{folder}\crossing_lines.geojson', driver='GeoJSON')
+out.to_file(rf'{folder}/crossing_lines.geojson', driver='GeoJSON')
 
 # out interactor file 
 # TODO: give the interactor the 'crossing' type attribute? or just in the 'highway'?
@@ -261,7 +273,7 @@ interactor_df.set_geometry('points', inplace=True)
 out2 = interactor_df[['osm_id', 'name_left', 'highway_left', 'other_tags_left', 'points']]
 name_list = ['osm_id', 'name', 'highway', 'other_tags', 'points']
 out2.columns = name_list
-# out2.to_file(rf'{folder}\crossing_lines_interactors_on_curb.geojson', driver='GeoJSON')
+# out2.to_file(rf'{folder}/crossing_lines_interactors_on_curb.geojson', driver='GeoJSON')
 # fin for now
 
 # re-id the island here? CHECK:

@@ -3,7 +3,6 @@ TODO: this is pretty much stand alone, doesn't have to be done now for the sidew
 the old script still work. (03_split_island_2)"""
 
 import json
-from macpath import join
 
 import geopandas as gpd
 import numpy as np
@@ -12,27 +11,39 @@ from shapely.geometry import (LineString, MultiLineString, MultiPoint,
                               MultiPolygon, Point, Polygon)
 from shapely.ops import nearest_points
 
+import warnings
+warnings.filterwarnings('ignore')
+
+import argparse
+parser = argparse.ArgumentParser(description='set folder')
+parser.add_argument('folder', metavar='fd', type=str)
+args = parser.parse_args()
+
 # folder 
-base_folder = r'..\example_1'
-folder_temp = rf'{base_folder}\temp'
+# folder = r'../example_2'
+base_folder = rf"../{args.folder}"
+
+# # folder 
+# base_folder = r'../example_1'
+folder_temp = rf'{base_folder}/temp'
 # read param json 
-with open(rf'{base_folder}\param.json') as fp: 
+with open(rf'{base_folder}/param.json') as fp: 
     param_dict = json.load(fp)
 epsg = param_dict['epsg']
 size = param_dict['size_code']
 # decide which scale folder the processing result goes by the scale
-base_folder = rf"{base_folder}\data"
+base_folder = rf"{base_folder}/data"
 if 'A3' in size:
     scale = 500
-    folder = rf'{base_folder}\500'
+    folder = rf'{base_folder}/500'
 else:
     scale = 1000
-    folder = rf'{base_folder}\1000'
+    folder = rf'{base_folder}/1000'
 
 # files
-island_df = gpd.read_file(rf"{folder}\islands_full.geojson")
-crossing_df = gpd.read_file(rf"{folder}\crossing_lines.geojson")
-extent_df = gpd.read_file(rf"{base_folder}\big_extent.geojson")
+island_df = gpd.read_file(rf"{folder}/islands_full.geojson")
+crossing_df = gpd.read_file(rf"{folder}/crossing_lines.geojson")
+extent_df = gpd.read_file(rf"{base_folder}/big_extent.geojson")
 
 # TODO: clip and remove the crossing lines out of extent
 
@@ -207,7 +218,7 @@ def splitIsland(x):
         split = MultiPolygon(poly_list)
         return split
     else:
-        print((x.intersection_count))
+        # print((x.intersection_count))
         return x.geometry
     
 
@@ -252,7 +263,7 @@ def getStreetIDs(x, crossing_df):
     street_id_list = []
     for id in x.crossing_ids:
         # df.loc[df['B'] == 3, 'A']
-        print(crossing_df.loc[crossing_df['osm_id']==id, 'street_ids'].values.tolist())
+        # print(crossing_df.loc[crossing_df['osm_id']==id, 'street_ids'].values.tolist())
         try: 
             street_id = crossing_df.loc[crossing_df['osm_id']==id, 'street_ids'].values.tolist()[0]
             street_id_list.append(street_id)
@@ -268,12 +279,12 @@ join_df['street_ids'] = join_df['street_ids'].apply(lambda x: ','.join(map(str, 
 join_df.reset_index(inplace=True)
 join_df.set_geometry('test', inplace=True)
 out = join_df[['level_1', 'test', 'street_ids']]
-out.to_file(rf'{folder}\island_split.geojson', driver='GeoJSON')
+out.to_file(rf'{folder}/island_split.geojson', driver='GeoJSON')
 
 # out interactor file
 join_df.set_geometry('interactors', inplace=True)
 out2 = join_df[['level_1', 'interactors', 'street_ids']]
 out2['highway'] = 'island'
-# out2.to_file(rf'{folder}\island_interactors_1.geojson', driver='GeoJSON')
+# out2.to_file(rf'{folder}/island_interactors_1.geojson', driver='GeoJSON')
 
 # fin

@@ -6,33 +6,40 @@ import geopandas as gpd
 from shapely.geometry import LineString, Point
 import numpy as np
 from shapely import affinity
-# print(np.__version__)
-# quit()
+
+import argparse
+parser = argparse.ArgumentParser(description='set folder')
+parser.add_argument('folder', metavar='fd', type=str)
+args = parser.parse_args()
 
 # folder 
-base_folder = r'..\example_0'
-folder_temp = rf'{base_folder}\temp'
+# folder = r'../example_2'
+base_folder = rf"../{args.folder}"
+
+# # folder 
+# base_folder = r'../example_0'
+folder_temp = rf'{base_folder}/temp'
 # read param json 
-with open(rf'{base_folder}\param.json') as fp: 
+with open(rf'{base_folder}/param.json') as fp: 
     param_dict = json.load(fp)
 epsg = param_dict['epsg']
 size = param_dict['size_code']
 # decide which scale folder the processing result goes by the scale
-base_folder = rf"{base_folder}\data"
+base_folder = rf"{base_folder}/data"
 if 'A3' in size:
     scale = 500
-    folder = rf'{base_folder}\500'
+    folder = rf'{base_folder}/500'
 else:
     scale = 1000
-    folder = rf'{base_folder}\1000'
+    folder = rf'{base_folder}/1000'
 # overlay preference as param
 pref = param_dict['overlay_pref']  # "direct", or "displace"
 move_dist = param_dict['icon_gap']*scale / 1000 + 2
 
 # files
-bus_df = gpd.read_file(rf'{base_folder}\bus_stop.geojson', driver='GeoJSON')
-street_boundary_df = gpd.read_file(rf'{folder}\street_boundary_filled.geojson', driver='GeoJSON')
-street_line_df = gpd.read_file(rf'{base_folder}\snapped_streets.geojson', driver='GeoJSON')
+bus_df = gpd.read_file(rf'{base_folder}/bus_stop.geojson', driver='GeoJSON')
+street_boundary_df = gpd.read_file(rf'{folder}/street_boundary_filled.geojson', driver='GeoJSON')
+street_line_df = gpd.read_file(rf'{base_folder}/snapped_streets.geojson', driver='GeoJSON')
 
 # NOTSURE only do the stop position? is a match needed here？
 bus_df['type'] = bus_df.apply(lambda x: 'center' if 'stop_position' in x.other_tags else 'side', axis=1)
@@ -76,4 +83,4 @@ if pref == "displace":
 # out
 gdf = gpd.GeoDataFrame(join_df, crs=f"EPSG:{epsg}", geometry='newpoint')
 out = gdf[['osm_id', 'newpoint']]
-out.to_file(rf'{folder}\bus_stop_overlay.geojson', driver='GeoJSON')
+out.to_file(rf'{folder}/bus_stop_overlay.geojson', driver='GeoJSON')

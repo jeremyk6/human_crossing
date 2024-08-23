@@ -2,24 +2,33 @@ import json
 
 import geopandas as gpd
 
+import warnings
+warnings.filterwarnings('ignore')
+
+import argparse
+parser = argparse.ArgumentParser(description='set folder')
+parser.add_argument('folder', metavar='fd', type=str)
+args = parser.parse_args()
+
 # folder 
-base_folder = r'..\example_0'
-folder_temp = rf'{base_folder}\temp'
+# folder = r'../example_2'
+base_folder = rf"../{args.folder}"
+folder_temp = rf'{base_folder}/temp'
 # read param json 
-with open(rf'{base_folder}\param.json') as fp: 
+with open(rf'{base_folder}/param.json') as fp: 
     param_dict = json.load(fp)
 epsg = param_dict['epsg']
 building_level = param_dict['building_level']
 size = param_dict['size_code']
 # size = 'A5_off'
 # decide which scale folder the processing result goes by the scale
-base_folder = rf"{base_folder}\data"
+base_folder = rf"{base_folder}/data"
 if 'A3' in size:
     scale = 500
-    folder = rf'{base_folder}\500'
+    folder = rf'{base_folder}/500'
 else:
     scale = 1000
-    folder = rf'{base_folder}\1000'
+    folder = rf'{base_folder}/1000'
 
 
 # overlay preference as param, for the bus stop thing before to be integrated
@@ -27,12 +36,12 @@ pref = param_dict['overlay_pref']  # "direct", or "displace"
 move_dist = param_dict['icon_gap']*scale / 1000
 
 # files 
-streets_df = gpd.read_file(rf'{folder}\street_area.geojson')
-extent_df = gpd.read_file(rf'{base_folder}\big_extent.geojson')
-building_df = gpd.read_file(rf'{base_folder}\buildings.geojson')
-working_extent_df = gpd.read_file(rf'{base_folder}\extent_{size}.geojson')
+streets_df = gpd.read_file(rf'{folder}/street_area.geojson')
+extent_df = gpd.read_file(rf'{base_folder}/big_extent.geojson')
+building_df = gpd.read_file(rf'{base_folder}/buildings.geojson')
+working_extent_df = gpd.read_file(rf'{base_folder}/extent_{size}.geojson')
 try:
-    busstop_df = gpd.read_file(rf'{folder}\bus_stop_overlay.geojson')  # for later
+    busstop_df = gpd.read_file(rf'{folder}/bus_stop_overlay.geojson')  # for later
 except:
     busstop_df = None
 
@@ -41,21 +50,21 @@ line_gap_meter = param_dict['line_gap'] * scale / 1000
 line_width_meter = param_dict['line_width'] * scale / 1000
 
 try:
-    island_df = gpd.read_file(rf'{folder}\islands_full.geojson')
+    island_df = gpd.read_file(rf'{folder}/islands_full.geojson')
 except:
     island_df = None
 try: 
-    sidewalk_area_df = gpd.read_file(rf'{folder}\sidewalk_gen.geojson')
+    sidewalk_area_df = gpd.read_file(rf'{folder}/sidewalk_gen.geojson')
 except:
     sidewalk_area_df = None
 try: 
-    sidewalk_line_df = gpd.read_file(rf'{folder}\sidewalk_lines.geojson')
+    sidewalk_line_df = gpd.read_file(rf'{folder}/sidewalk_lines.geojson')
 except:
     sidewalk_line_df = None
 
 # if sidewalk area exist, directly move away 5mm or so from the sidewalk
 if sidewalk_area_df is not None:
-    street_area = gpd.read_file(rf'{folder}\street_from_sidewalk.geojson')
+    street_area = gpd.read_file(rf'{folder}/street_from_sidewalk.geojson')
     sidewalk_buffer = sidewalk_area_df.geometry.unary_union.buffer(area_gap_meter)
     streets_buffer = street_area.geometry.unary_union.union(sidewalk_buffer)
 elif sidewalk_line_df is not None:
@@ -91,8 +100,8 @@ def buildingGen(building_level, geometry):
         if 'example_0' in base_folder:
             d1 = 10; d2 = 10
         else:
-            d1 = 20; d2 = 10
-        geometry = DandE(geometry, d1, 4)
+            d1 = 15; d2 = 10
+        geometry = DandE(geometry, d1, 3)
         geometry = geometry.simplify(5)
         # # difference clip again
         # geometry = geometry.difference(streets_buffer)
@@ -122,6 +131,7 @@ single_parts = buildingGen(building_level,geometry)
 
 d = {'geometry': single_parts}
 gdf = gpd.GeoDataFrame(d, crs=f'epsg:{epsg}')
+gdf = gdf[gdf.geometry.area>20]
 gdf.set_geometry('geometry', inplace=True)
 
 # make interactors
@@ -144,9 +154,9 @@ interactor_df['osm_way_id'] = interactor_df['osm_way_id'].apply(lambda x: ','.jo
 
 # out buildings
 gdf.drop(columns=['cut'], inplace=True)
-gdf.to_file(rf'{folder}\buildings_gen.geojson', driver='GeoJSON')
+gdf.to_file(rf'{folder}/buildings_gen.geojson', driver='GeoJSON')
 
 # out interactors
 # interactor_df.drop(columns=['geometry', 'cut'], inplace=True)
 interactor_df['highway'] = 'buildings'
-interactor_df.to_file(rf'{folder}\buildings_interactors.geojson', driver='GeoJSON')
+# interactor_df.to_file(rf'{folder}/buildings_interactors.geojson', driver='GeoJSON')

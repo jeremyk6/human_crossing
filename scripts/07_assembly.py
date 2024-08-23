@@ -1,9 +1,19 @@
+from genericpath import isfile
 import json
 
+import warnings
+warnings.filterwarnings('ignore')
+
+import argparse
+parser = argparse.ArgumentParser(description='set folder')
+parser.add_argument('folder', metavar='fd', type=str)
+args = parser.parse_args()
+
 # folder 
-base_folder = r'..\example_1'
+# folder = r'../example_2'
+base_folder = rf"../{args.folder}"
 root_folder = base_folder
-folder_sld = r'..\styles'
+folder_sld = r'../styles'
 
 # make folder
 from pathlib import Path
@@ -13,7 +23,7 @@ Path(rf"{base_folder}/image").mkdir(parents=True, exist_ok=True)
 with open(r"qgis_env.json", 'r') as f:
     env_dict = json.load(f)
 # read param json 
-with open(rf'{base_folder}\param.json') as fp: 
+with open(rf'{base_folder}/param.json') as fp: 
     param_dict = json.load(fp)
 with open(r'size_lookup_table_fr.json') as fp:
     size_dict = json.load(fp)
@@ -22,29 +32,26 @@ size = param_dict['size_code']
 object_list = param_dict['object_list']
 style_list = param_dict['style_list']
 
-base_folder = rf"{base_folder}\data"
-folder_temp = rf'{base_folder}\temp'
+base_folder = rf"{base_folder}/data"
+folder_temp = rf'{base_folder}/temp'
 
 if 'A3' in size:
     scale_ = 500
-    folder = rf'{base_folder}\500'
+    folder = rf'{base_folder}/500'
 else:
     scale_ = 1000
-    folder = rf'{base_folder}\1000'
+    folder = rf'{base_folder}/1000'
 
-style_folder = r"..\styles"
+style_folder = r"../styles"
 
 # ---------------- QGIS STUFF ------------------------------
 import sys
 import os
-os.environ['PROJ_LIB'] = rf"{env_dict['PROJ_LIB']}"
-os.environ['PROJ_DEBUG'] = rf"{env_dict['PROJ_DEBUG']}"
-os.environ['QT_QPA_PLATFORM_PLUGIN_PATH'] = rf"{env_dict['QT_QPA_PLATFORM_PLUGIN_PATH']}"
-for apath in env_dict['PathAppend']:
-    os.environ['PATH'] += rf"{apath}"
+os.environ["QT_QPA_PLATFORM"] = "offscreen"
+prefixpath = '/usr/'
 from qgis.core import QgsApplication, QgsProcessingFeedback, QgsProcessingContext, QgsProject, QgsPrintLayout, QgsLayoutItemMap, QgsRectangle, QgsLayoutPoint, QgsLayoutSize, QgsUnitTypes, QgsProcessingUtils, QgsLayoutItemLabel, QgsLayoutExporter, QgsLayoutItemPage, QgsReadWriteContext, QgsLayerTree, QgsLayerTreeNode
 from PyQt5.QtXml import QDomDocument
-QgsApplication.setPrefixPath(rf"{env_dict['setPrefixPath']}", True)
+QgsApplication.setPrefixPath(prefixpath, True)
 qgs = QgsApplication([], False)
 qgs.initQgis()
 sys.path.append(rf"{env_dict['PathAppend']}")
@@ -57,7 +64,7 @@ import geopandas as gpd  # this goes after
 
 # add the street objects in the object list
 street_objects = ['street', 'crossing']
-if os.path.isfile(rf"{folder}\islands_full.geojson"):
+if os.path.isfile(rf"{folder}/islands_full.geojson"):
     street_objects.append('island')
 for x in street_objects:
     if x not in object_list:
@@ -89,6 +96,7 @@ fr_name_dict = {'street': 'routes', 'crossing': 'passage piéton', 'building': '
                 'parking': 'parking', 'sidewalk_line': 'trottoir', 'sidewalk_area': 'trottoir', 'green': 'pelouse', 
                 'amenity': 'POI', 'cycleway': 'pistes cyclables', 'island': 'îlots'}
 
+interacotr_list = {'street_interactors', 'crossing_interactors_on_street', 'buildings_interactors', 'island_interactors'}
 
 def exportLayout(template_code, object_list, style_list):
     '''
@@ -103,7 +111,7 @@ def exportLayout(template_code, object_list, style_list):
 
     # get map extent in map unit
     # TODO on the server, this need to be in the fucntion, because, import will read and save it before the function is called.
-    extent_df = gpd.read_file(rf'{base_folder}\extent_{template_code}.geojson')
+    extent_df = gpd.read_file(rf'{base_folder}/extent_{template_code}.geojson')
     box = extent_df.geometry.unary_union.bounds
 
     # decode the template to size
@@ -123,13 +131,13 @@ def exportLayout(template_code, object_list, style_list):
 
     # ------- ADD LAYERS TO MAP AND STYLE THEM -----------
     # TODO how to name the layers and files better? 
-    print(object_list)
-    print(style_list)
+    # print(object_list)
+    # print(style_list)
     for obj in object_list:
         if obj == '':
             continue
         obj_index = object_list.index(obj)
-        ly = QgsProcessingUtils.mapLayerFromString(rf'{folder}\{layer_file_dict[obj]}.geojson', context)
+        ly = QgsProcessingUtils.mapLayerFromString(rf'{folder}/{layer_file_dict[obj]}.geojson', context)
         project.addMapLayer(ly)
         ly.setName(obj)  # TODO not good with the "busstop" 
         # ------------ APPLY STYLES -------------------
@@ -137,15 +145,15 @@ def exportLayout(template_code, object_list, style_list):
         # chosen_style = [style for style in style_list if obj.replace(" ", "") in style][0]
         chosen_style = style_list[obj_index]
         # # NOTE very weird comprimise for now
-        # if obj == 'crossing' and 'A3' in template_code:
+        # if obj == 'crossing' and 'A5_off' in template_code:
         #     chosen_style = style_list[obj_index].replace('1000', '500')
-        style_file = rf'{folder_sld}\{chosen_style}.qml'
+        style_file = rf'{folder_sld}/{chosen_style}.qml'
         ly.loadNamedStyle(style_file)
         ly.triggerRepaint()
 
     # ------------ APPLY TEMPLATE ----------------
     # TODO: the template names
-    with open(rf'..\templates\{layout_code}_fr.qpt', encoding="utf-8") as f:
+    with open(rf'../templates/{layout_code}_fr.qpt', encoding="utf-8") as f:
         template_content = f.read()
     doc = QDomDocument()
     doc.setContent(template_content)
@@ -177,8 +185,8 @@ def exportLayout(template_code, object_list, style_list):
         # if the layer is street, remove it's own legend and add the ghost layer legend
         # TODO it's hardcoded for now, and the street boundary file need to be the copy file
         if list(ly.values())[0].name() == 'routes': 
-            ghost_ly = QgsProcessingUtils.mapLayerFromString(rf'{base_folder}\snapped_streets.geojson', context)
-            ghost_ly.loadNamedStyle(rf'{folder_sld}\street_ghost.qml')
+            ghost_ly = QgsProcessingUtils.mapLayerFromString(rf'{base_folder}/snapped_streets.geojson', context)
+            ghost_ly.loadNamedStyle(rf'{folder_sld}/street_ghost.qml')
             tree_ly = root.addLayer(ghost_ly)
             tree_ly.setUseLayerName(False)
             tree_ly.setName('routes')
@@ -208,6 +216,17 @@ def exportLayout(template_code, object_list, style_list):
         i = i+1
     legend_item.model().setRootGroup(root)
 
+    # INTERACTIVE SPECIAL: add the interactor points after the legend
+    if template_code == 'A5_off':
+        for item in interacotr_list:
+            if isfile(rf"{folder}/{item}.geojson"):
+                ly = QgsProcessingUtils.mapLayerFromString(rf'{folder}/{item}.geojson', context)
+                project.addMapLayer(ly)
+                ly.setName(obj)
+                style_file = rf'{folder_sld}/interactor_default.qml'
+                ly.loadNamedStyle(style_file)
+                ly.triggerRepaint()
+
     # --------- LINK SCALE BAR TO MAP ---------------
     scalebar_item = layout.itemById('scale_bar')
     if scalebar_item:
@@ -217,10 +236,10 @@ def exportLayout(template_code, object_list, style_list):
     # export 
     exporter = QgsLayoutExporter(layout)  
     # TODO how to name this inline with the callback? (timestamp so it doesn't crash?)
-    exporter.exportToImage(rf'{root_folder}\image\{template_code}.png', QgsLayoutExporter.ImageExportSettings()) 
+    exporter.exportToImage(rf'{root_folder}/image/{template_code}.png', QgsLayoutExporter.ImageExportSettings()) 
 
     # pdf 
-    exporter.exportToPdf(rf'{root_folder}\image\{template_code}.pdf', QgsLayoutExporter.PdfExportSettings())
+    exporter.exportToPdf(rf'{root_folder}/image/{template_code}.pdf', QgsLayoutExporter.PdfExportSettings())
 
     # clear project so you don't get those fucking re-loads from nowhere!!
     project.clear()

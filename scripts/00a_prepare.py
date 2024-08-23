@@ -7,8 +7,17 @@ make folders"""
 import geopandas as gpd
 from shapely.geometry import box
 
+import warnings
+warnings.filterwarnings('ignore')
+
+import argparse
+parser = argparse.ArgumentParser(description='set folder')
+parser.add_argument('folder', metavar='fd', type=str)
+args = parser.parse_args()
+
 # folder 
-folder = r'..\example_1'
+# folder = r'../example_2'
+folder = rf"../{args.folder}"
 
 # make new folders
 
@@ -17,7 +26,7 @@ import json
 
 from pyproj import Proj, transform
 
-with open(rf'{folder}\param.json') as fp:
+with open(rf'{folder}/param.json') as fp:
     param_dict = json.load(fp)
 with open(r'size_lookup_table_fr.json') as fp:
     size_dict = json.load(fp)
@@ -35,7 +44,7 @@ else:
     scale = 1000
 x, y = size_dict[size_code]
 
-folder = rf"{folder}\data"
+folder = rf"{folder}/data"
 
 from pathlib import Path
 
@@ -57,7 +66,7 @@ print(center_x-half_x, center_y-half_y, center_x+half_x, center_y+half_y)
 
 d = {'geometry': [b]}
 gdf = gpd.GeoDataFrame(d, crs=f'epsg:{epsg}')
-gdf.to_file(rf'{folder}\extent_{size_code}.geojson', driver='GeoJSON')  # real extent based on paper choice
+gdf.to_file(rf'{folder}/extent_{size_code}.geojson', driver='GeoJSON')  # real extent based on paper choice
 
 # the bigger extent for processing
 x, y = [400, 400]
@@ -70,4 +79,7 @@ b = box(center_x-half_x, center_y-half_y, center_x+half_x, center_y+half_y)
 d = {'geometry': [b]}
 gdf = gpd.GeoDataFrame(d, crs=f'epsg:{epsg}')
 gdf.set_geometry('geometry', inplace=True)
-gdf.to_file(rf'{folder}\big_extent.geojson', driver='GeoJSON')
+gdf.to_file(rf'{folder}/big_extent.geojson', driver='GeoJSON')
+
+
+print("finished")

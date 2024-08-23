@@ -6,37 +6,42 @@ import json
 import geopandas as gpd
 import networkx as nx
 import numpy as np
-import ogr
+from osgeo import ogr  # conda qgis only
 import osgeo.gdal as gdal
 import pandas as pd
 from shapely.geometry import *
 import shapely
 
-# print(gpd.__version__)
-# print(shapely.__version__)
-# print(gdal.VersionInfo())
-# quit()
+import warnings
+warnings.filterwarnings('ignore')
+
+import argparse
+parser = argparse.ArgumentParser(description='set folder')
+parser.add_argument('folder', metavar='fd', type=str)
+args = parser.parse_args()
 
 # folder 
-base_folder = r'..\example_1'
-folder_temp = rf'{base_folder}\temp'
+# folder = r'../example_2'
+base_folder = rf"../{args.folder}"
+# base_folder = r'../example_1'
+folder_temp = rf'{base_folder}/temp'
 
-# read QGIS setup json
-with open(r"qgis_env.json", 'r') as f:
-    env_dict = json.load(f)
+# # read QGIS setup json
+# with open(r"qgis_env.json", 'r') as f:
+#     env_dict = json.load(f)
 # read param json 
-with open(rf'{base_folder}\param.json') as fp: 
+with open(rf'{base_folder}/param.json') as fp: 
     param_dict = json.load(fp)
 epsg = param_dict['epsg']
 size = param_dict['size_code']
 # decide which scale folder the processing result goes by the scale
-base_folder = rf"{base_folder}\data"
+base_folder = rf"{base_folder}/data"
 if 'A3' in size:
     scale = 500
-    folder = rf'{base_folder}\500'
+    folder = rf'{base_folder}/500'
 else:
     scale = 1000
-    folder = rf'{base_folder}\1000'
+    folder = rf'{base_folder}/1000'
 
 
 # might change? not in json yet CHECK:
@@ -47,7 +52,7 @@ amenity_list = ['bank', 'pharmacy', 'hospital', 'social_facility', 'fountain', '
 lane_dict = {"primary": 2, "secondary": 2, "tertiary": 1, 'service':1, 'residential': 1, 'primary_link': 1, 'secondary_link': 1, "tertiary_link":1, "trunk": 1, 'trunk_link':1, "busway": 1, 'residential':1,"cycleway": 0.5, None: 1}
 
 # data files
-osm_file = rf'{base_folder}\map.osm'
+osm_file = rf'{base_folder}/map.osm'
 
 # -------- get data from osm ---------------
 driver = ogr.GetDriverByName('OSM')
@@ -90,17 +95,17 @@ gdf = gpd.GeoDataFrame(line_list, columns=['osm_id', 'name', 'highway', 'other_t
 streets_df = gdf[gdf['highway'].isin(street_selection_list)]
 # remove some little streets
 streets_df = streets_df[~(streets_df['other_tags'].apply(parseTags, args=('access',))=='private')]
-streets_df.to_file(rf'{base_folder}\streets.geojson', driver='GeoJSON')
+streets_df.to_file(rf'{base_folder}/streets.geojson', driver='GeoJSON')
 # crossing lines
 crossing_lines_df = gdf[(gdf['highway']=='footway') & (gdf['other_tags'].apply(parseTags, args=('footway',))=='crossing')]
 if len(crossing_lines_df) > 0:
-    crossing_lines_df.to_file(rf'{base_folder}\crossing_lines.geojson', driver='GeoJSON')
+    crossing_lines_df.to_file(rf'{base_folder}/crossing_lines.geojson', driver='GeoJSON')
     pass
 # sidewalk lines 
 sidewalk_line_df = gdf[(gdf['highway']=='footway') & 
                         (gdf['other_tags'].apply(parseTags, args=('footway',))!='crossing')]  # CHECK
 if len(sidewalk_line_df) > 0:
-    sidewalk_line_df.to_file(rf'{base_folder}\sidewalk_lines.geojson', driver='GeoJSON')
+    sidewalk_line_df.to_file(rf'{base_folder}/sidewalk_lines.geojson', driver='GeoJSON')
 # cycleway lines TODO:
 
 point_list = []
@@ -116,18 +121,18 @@ for feature in point_features:
 gdf = gpd.GeoDataFrame(point_list, columns=['osm_id', 'name', 'highway','other_tags', 'geometry'], crs={'init': 'epsg:4326'}).to_crs(epsg=epsg)
 # crossing points
 crossing_df = gdf[gdf['highway']=='crossing']
-crossing_df.to_file(rf'{base_folder}\crossing_points.geojson', driver='GeoJSON')
+crossing_df.to_file(rf'{base_folder}/crossing_points.geojson', driver='GeoJSON')
 # point amenity
 try:
     amenity_df = gdf[gdf['other_tags'].apply(parseTags, args=('amenity',)).isin(amenity_list)]
-    amenity_df.to_file(rf'{base_folder}\point_POI.geojson', driver='GeoJSON')
+    amenity_df.to_file(rf'{base_folder}/point_POI.geojson', driver='GeoJSON')
 except:
     pass
 # bus stops
 try:
     # CHECK: there are multiple ways to tag a bus stop though, which ones should I take?
     busstop_df = gdf[(gdf['other_tags'].apply(parseTags, args=('public_transport',))=='stop_position') | (gdf['highway']=='bus_stop')]
-    busstop_df.to_file(rf'{base_folder}\bus_stop.geojson', driver='GeoJSON')
+    busstop_df.to_file(rf'{base_folder}/bus_stop.geojson', driver='GeoJSON')
     pass
 except:
     pass
@@ -155,15 +160,15 @@ for feature in polygon_features:
 gdf = gpd.GeoDataFrame(polygon_list, columns=['osm_id', 'osm_way_id', 'name', 'amenity', 'building', 'landuse', 'leisure', 'other_tags', 'geometry'], crs={'init': 'epsg:4326'}).to_crs(epsg=epsg)
 # buildings
 building_df = gdf[gdf['building'].notna()]
-building_df.to_file(rf'{base_folder}\buildings.geojson', driver='GeoJSON')
+building_df.to_file(rf'{base_folder}/buildings.geojson', driver='GeoJSON')
 # parkings
 parking_df = gdf[gdf['amenity'].str.contains('parkingbus', na=False)]
 if len(parking_df) > 0:
-    parking_df.to_file(rf'{base_folder}\parkings.geojson', driver='GeoJSON')
+    parking_df.to_file(rf'{base_folder}/parkings.geojson', driver='GeoJSON')
 # greens
 grass_df = gdf[gdf['landuse'].str.contains('grass', na=False) | gdf['leisure'].str.contains('garden', na=False)]
 if len(grass_df) > 0:
-    grass_df.to_file(rf'{base_folder}\green.geojson', driver='GeoJSON')
+    grass_df.to_file(rf'{base_folder}/green.geojson', driver='GeoJSON')
 # sidewalk area
 sidewalk_area_df = gdf[(gdf['other_tags'].apply(parseTags, args=('highway',))=='footway') & (gdf['other_tags'].apply(parseTags, args=('footway',))=='sidewalk')]
 if len(sidewalk_area_df) > 0:
@@ -180,7 +185,7 @@ if len(sidewalk_area_df) > 0:
     df1.drop(columns=['geometry', 'geom_shift', 'index_shift', 'area'], inplace=True)
     df1.columns = [*df1.columns[:-1], 'geometry']
     df1.set_geometry('geometry', inplace=True)
-    df1.to_file(rf'{base_folder}\sidewalk_area.geojson', driver='GeoJSON')
+    df1.to_file(rf'{base_folder}/sidewalk_area.geojson', driver='GeoJSON')
 
 '''first step of street processing put here because, need check at the end for lane tagging'''
 # -------------------------------------------------------------
@@ -239,7 +244,7 @@ streets_df['lanes'] = streets_df.apply(lambda x: lane_dict[x.highway] if (pd.isn
 streets_df.drop(columns=['from', 'to'], inplace=True)
 # estimation done
 # out in the base folder
-streets_df.to_file(rf'{base_folder}\streets_laned.geojson', driver='GeoJSON')
+streets_df.to_file(rf'{base_folder}/streets_laned.geojson', driver='GeoJSON')
 
 
 """some street preprocessing before it goes into scale specific stuff"""
@@ -255,21 +260,20 @@ line_width_meter = scale*param_dict['line_width'] / 1000.0
 line_gap_meter = scale*param_dict['line_gap'] / 1000.0
 displace_dist = lane_width + 2*line_width_meter + line_width_meter 
 # ---------------- QGIS GOES LATER OTHERWISE BIG MESS UP WITH THE OGR STUFF BEFORE --------
-os.environ['PROJ_LIB'] = rf"{env_dict['PROJ_LIB']}"
-os.environ['PROJ_DEBUG'] = rf"{env_dict['PROJ_DEBUG']}"
-os.environ['QT_QPA_PLATFORM_PLUGIN_PATH'] = rf"{env_dict['QT_QPA_PLATFORM_PLUGIN_PATH']}"
-for apath in env_dict['PathAppend']:
-    os.environ['PATH'] += rf"{apath}"
+os.environ["QT_QPA_PLATFORM"] = "offscreen"
+prefixpath = '/usr/'
+# Add the path to processing so we can import it next
+sys.path.append("/usr/share/qgis/python/plugins/")
 from qgis.analysis import QgsNativeAlgorithms
 from qgis.core import (QgsApplication, QgsFeature, QgsField, QgsGeometry,
                        QgsPoint, QgsPointXY, QgsProcessingContext,
                        QgsProcessingFeedback, QgsProcessingUtils,
                        QgsVectorLayer)
 
-QgsApplication.setPrefixPath(rf"{env_dict['setPrefixPath']}", True)
+QgsApplication.setPrefixPath(prefixpath, True)
 qgs = QgsApplication([], False)
 qgs.initQgis()
-sys.path.append(rf"{env_dict['PathAppend']}")
+
 import processing
 from processing.core.Processing import Processing
 from qgis.analysis import QgsNativeAlgorithms
@@ -281,9 +285,9 @@ feedback = QgsProcessingFeedback()
 # --------------- END QIGS --------------------
 # displace: those little parameters like a and b, by default?
 displaced = processing.run('grass7:v.generalize',
-            {'input': rf'{base_folder}\streets_laned.geojson',
-            'output': rf'{base_folder}\streets_displaced.geojson',
-            'error': rf'{folder_temp}\error.geojson',
+            {'input': rf'{base_folder}/streets_laned.geojson',
+            'output': rf'{base_folder}/streets_displaced.geojson',
+            'error': rf'{folder_temp}/error.geojson',
             'method': 12, # displacement
             'threshold': displace_dist,  # seem not consistent with graphic modeller??
             'alpha': 3,  
@@ -294,8 +298,9 @@ displaced = processing.run('grass7:v.generalize',
 
 
 # -------------- fix street and snap dangling ends to extent --------------------
-extent_df = gpd.read_file(rf'{base_folder}\big_extent.geojson')
-streets_df = gpd.read_file(rf'{base_folder}\streets_displaced.geojson')
+extent_df = gpd.read_file(rf'{base_folder}/big_extent.geojson')
+streets_df = gpd.read_file(rf'{base_folder}/streets_displaced.geojson')
+streets_df = gpd.read_file(rf'{base_folder}/streets_laned.geojson')
 extent_df['buffer'] = extent_df.geometry.buffer(20, cap_style=2)
 extent_df.set_geometry('buffer', inplace=True)
 extent_df['boundary'] = extent_df.geometry.boundary
@@ -360,7 +365,7 @@ def extend_to_extent(line, point, box):
         except:
             return line
     else:
-        print('not long enough')
+        # print('not long enough')
         return line
     l_coords.append(new_point_coords)
     new_extended_line = LineString(l_coords)
@@ -371,8 +376,9 @@ streets_df['geometry'] = streets_df.apply(lambda x: extend_to_extent(x.geometry,
 # cut street to extent
 streets_df['geometry'] = streets_df.apply(lambda x: x.geometry.intersection(extent_df.geometry.unary_union), axis=1)
 out = streets_df[['osm_id', 'name', 'highway', 'other_tags', 'lanes', 'geometry']]
-out.to_file(rf'{base_folder}\snapped_streets.geojson', driver='GeoJSON')
+out.to_file(rf'{base_folder}/snapped_streets.geojson', driver='GeoJSON')
 
 # fin
+print("finished")
 
 # MANUAL: check lane estimation and dangling street snap
